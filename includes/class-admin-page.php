@@ -53,6 +53,7 @@ class Admin_Page {
 			'nonceEmptyTrash'  => wp_create_nonce( 'wrt_empty_trash_orders' ),
 			'nonceDeleteUsers' => wp_create_nonce( 'wrt_delete_users' ),
 			'nonceCptItems'    => wp_create_nonce( 'wrt_delete_cpt_items' ),
+			'nonceMedia'       => wp_create_nonce( 'wrt_media_prefix' ),
 			'i18n'             => array(
 				'confirmTrash'       => __( 'Are you sure you want to move ALL WooCommerce orders to trash? This cannot be easily undone for large datasets.', 'wp-reset-taahzino' ),
 				'trashing'           => __( 'Trashing orders...', 'wp-reset-taahzino' ),
@@ -80,7 +81,16 @@ class Admin_Page {
 				'deletedCpt'         => __( 'Deleted %1$d of %2$d items...', 'wp-reset-taahzino' ),
 				'cptDeleteComplete'  => __( 'All items of the selected post type have been permanently deleted.', 'wp-reset-taahzino' ),
 				'noCptItems'         => __( 'No items found for the selected post type.', 'wp-reset-taahzino' ),
-				'cancelledCpt'       => __( 'Process cancelled. %d item(s) were deleted.', 'wp-reset-taahzino' ),
+				'cancelledCpt'         => __( 'Process cancelled. %d item(s) were deleted.', 'wp-reset-taahzino' ),
+				'mediaSearching'       => __( 'Searching...', 'wp-reset-taahzino' ),
+				'mediaFound'           => __( 'Found %d media file(s) matching this prefix.', 'wp-reset-taahzino' ),
+				'mediaNotFound'        => __( 'No media files found with this prefix.', 'wp-reset-taahzino' ),
+				'confirmMediaDelete'   => __( 'Are you sure you want to PERMANENTLY DELETE all %d media file(s) with this prefix? The physical files will be removed from disk. This cannot be undone.', 'wp-reset-taahzino' ),
+				'deletingMedia'        => __( 'Deleting media files...', 'wp-reset-taahzino' ),
+				'deletedMedia'         => __( 'Deleted %1$d of %2$d files...', 'wp-reset-taahzino' ),
+				'mediaDeleteComplete'  => __( 'All matching media files have been permanently deleted.', 'wp-reset-taahzino' ),
+				'cancelledMedia'       => __( 'Process cancelled. %d file(s) were deleted.', 'wp-reset-taahzino' ),
+				'mediaPrefixRequired'  => __( 'Please enter a filename prefix to search.', 'wp-reset-taahzino' ),
 			),
 		) );
 	}
@@ -202,6 +212,7 @@ class Admin_Page {
 
 			<?php $this->render_users_card(); ?>
 			<?php $this->render_cpt_card(); ?>
+			<?php $this->render_media_card(); ?>
 		</div>
 		<?php
 	}
@@ -327,6 +338,54 @@ class Admin_Page {
 				</button>
 				<button type="button"
 					id="wrt-cancel-users"
+					class="button wrt-cancel-btn"
+					style="display:none;">
+					<?php esc_html_e( 'Cancel', 'wp-reset-taahzino' ); ?>
+				</button>
+			</p>
+		</div>
+		<?php
+	}
+
+	private function render_media_card() {
+		?>
+		<div class="wrt-card">
+			<h2><?php esc_html_e( 'Delete Media by Filename Prefix', 'wp-reset-taahzino' ); ?></h2>
+			<p class="wrt-card-desc">
+				<?php esc_html_e( 'Enter a filename prefix (e.g. "banner") to find and permanently delete all matching media files, including physical files on disk and their database records.', 'wp-reset-taahzino' ); ?>
+			</p>
+
+			<p>
+				<label for="wrt-media-prefix"><?php esc_html_e( 'Filename prefix:', 'wp-reset-taahzino' ); ?></label><br>
+				<input type="text"
+					id="wrt-media-prefix"
+					class="regular-text"
+					placeholder="<?php esc_attr_e( 'e.g. banner', 'wp-reset-taahzino' ); ?>">
+				<button type="button" id="wrt-search-media" class="button">
+					<?php esc_html_e( 'Search', 'wp-reset-taahzino' ); ?>
+				</button>
+			</p>
+
+			<p id="wrt-media-count-text" style="display:none;"></p>
+
+			<div id="wrt-media-progress-wrap" style="display:none;">
+				<div class="wrt-progress-bar">
+					<div class="wrt-progress-bar-fill" id="wrt-media-progress-fill"></div>
+				</div>
+				<p class="wrt-progress-text" id="wrt-media-progress-text"></p>
+			</div>
+
+			<div id="wrt-media-result" style="display:none;"></div>
+
+			<p class="wrt-actions">
+				<button type="button"
+					id="wrt-delete-media"
+					class="button button-link-delete"
+					disabled>
+					<?php esc_html_e( 'Delete Matching Files', 'wp-reset-taahzino' ); ?>
+				</button>
+				<button type="button"
+					id="wrt-cancel-media"
 					class="button wrt-cancel-btn"
 					style="display:none;">
 					<?php esc_html_e( 'Cancel', 'wp-reset-taahzino' ); ?>

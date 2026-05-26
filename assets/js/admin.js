@@ -38,7 +38,8 @@
 	};
 
 	BatchProcessor.prototype.start = function () {
-		if (!confirm(this.confirmMsg)) {
+		var msg = typeof this.confirmMsg === 'function' ? this.confirmMsg() : this.confirmMsg;
+		if (!confirm(msg)) {
 			return;
 		}
 
@@ -243,6 +244,114 @@
 				},
 			}).init();
 		}
+
+		// ---- Media by prefix ----
+		var $mediaPrefix    = $('#wrt-media-prefix');
+		var $mediaSearchBtn = $('#wrt-search-media');
+		var $mediaCountText = $('#wrt-media-count-text');
+		var $mediaDeleteBtn = $('#wrt-delete-media');
+		var mediaFoundCount = 0;
+
+		if ($mediaPrefix.length) {
+			$mediaPrefix.on('input', function () {
+				mediaFoundCount = 0;
+				$mediaCountText.hide().empty();
+				$mediaDeleteBtn.prop('disabled', true);
+			});
+
+			$mediaSearchBtn.on('click', function () {
+				var prefix = $.trim($mediaPrefix.val());
+				if (!prefix) {
+					$mediaCountText
+						.removeClass('wrt-notice-success wrt-notice-error wrt-notice-warning')
+						.addClass('wrt-notice wrt-notice-warning')
+						.html('<p>' + wrtData.i18n.mediaPrefixRequired + '</p>')
+						.show();
+					return;
+				}
+
+				$mediaSearchBtn.prop('disabled', true).text(wrtData.i18n.mediaSearching);
+				$mediaCountText.hide().empty();
+				$mediaDeleteBtn.prop('disabled', true);
+				mediaFoundCount = 0;
+
+				$.ajax({
+					url:      wrtData.ajaxUrl,
+					type:     'POST',
+					dataType: 'json',
+					data: {
+						action: 'wrt_count_media_by_prefix',
+						nonce:  wrtData.nonceMedia,
+						prefix: prefix,
+					},
+					success: function (response) {
+						$mediaSearchBtn.prop('disabled', false).text('Search');
+						if (!response.success) {
+							$mediaCountText
+								.removeClass('wrt-notice-success wrt-notice-error wrt-notice-warning')
+								.addClass('wrt-notice wrt-notice-error')
+								.html('<p>' + (response.data && response.data.message ? response.data.message : wrtData.i18n.error) + '</p>')
+								.show();
+							return;
+						}
+
+						mediaFoundCount = parseInt(response.data.count, 10) || 0;
+						if (mediaFoundCount > 0) {
+							var msg = wrtData.i18n.mediaFound.replace('%d', mediaFoundCount);
+							$mediaCountText
+								.removeClass('wrt-notice-success wrt-notice-error wrt-notice-warning')
+								.addClass('wrt-notice wrt-notice-success')
+								.html('<p>' + msg + '</p>')
+								.show();
+							$mediaDeleteBtn.prop('disabled', false);
+						} else {
+							$mediaCountText
+								.removeClass('wrt-notice-success wrt-notice-error wrt-notice-warning')
+								.addClass('wrt-notice wrt-notice-warning')
+								.html('<p>' + wrtData.i18n.mediaNotFound + '</p>')
+								.show();
+						}
+					},
+					error: function () {
+						$mediaSearchBtn.prop('disabled', false).text('Search');
+						$mediaCountText
+							.removeClass('wrt-notice-success wrt-notice-error wrt-notice-warning')
+							.addClass('wrt-notice wrt-notice-error')
+							.html('<p>' + wrtData.i18n.error + '</p>')
+							.show();
+					},
+				});
+			});
+
+			new BatchProcessor({
+				buttonId:       '#wrt-delete-media',
+				cancelButtonId: '#wrt-cancel-media',
+				progressWrapId: '#wrt-media-progress-wrap',
+				progressFillId: '#wrt-media-progress-fill',
+				progressTextId: '#wrt-media-progress-text',
+				resultId:       '#wrt-media-result',
+				countId:        '#wrt-media-count-text',
+				action:         'wrt_delete_media_by_prefix',
+				nonce:          wrtData.nonceMedia,
+				confirmMsg: function () {
+					return wrtData.i18n.confirmMediaDelete.replace('%d', mediaFoundCount);
+				},
+				processingMsg:  wrtData.i18n.deletingMedia,
+				progressMsg:    wrtData.i18n.deletedMedia,
+				completeMsg:    wrtData.i18n.mediaDeleteComplete,
+				emptyMsg:       wrtData.i18n.mediaNotFound,
+				cancelledMsg:   wrtData.i18n.cancelledMedia,
+				responseKey:    'deleted',
+				extraData: function () {
+					return { prefix: $.trim($mediaPrefix.val()) };
+				},
+				onComplete: function () {
+					mediaFoundCount = 0;
+					$mediaDeleteBtn.prop('disabled', true);
+				},
+			}).init();
+		}
+		// ---- End media by prefix ----
 
 		var $cptSelect  = $('#wrt-cpt-select');
 		var $cptCount   = $('#wrt-cpt-count');

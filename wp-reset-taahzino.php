@@ -3,7 +3,7 @@
  * Plugin Name: WP Reset by Taahzino
  * Plugin URI:  https://taahzino.com/plugins/wp-reset
  * Description: Reset various aspects of your WordPress site. Move WooCommerce orders to trash and more.
- * Version:     1.4.0
+ * Version:     1.5.0
  * Author:      Taahzino
  * Author URI:  https://taahzino.com
  * License:     GPLv2 or later
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WP_RESET_TAAHZINO_VERSION', '1.4.0' );
+define( 'WP_RESET_TAAHZINO_VERSION', '1.5.0' );
 define( 'WP_RESET_TAAHZINO_PATH', plugin_dir_path( __FILE__ ) );
 define( 'WP_RESET_TAAHZINO_URL', plugin_dir_url( __FILE__ ) );
 
