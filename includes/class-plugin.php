@@ -25,11 +25,15 @@ class Plugin {
 	private function load_dependencies() {
 		require_once WP_RESET_TAAHZINO_PATH . 'includes/class-admin-page.php';
 		require_once WP_RESET_TAAHZINO_PATH . 'includes/class-woo-orders-reset.php';
+		require_once WP_RESET_TAAHZINO_PATH . 'includes/class-users-reset.php';
+		require_once WP_RESET_TAAHZINO_PATH . 'includes/class-cpt-items-reset.php';
 	}
 
 	private function init() {
 		new Admin_Page();
 		new Woo_Orders_Reset();
+		new Users_Reset();
+		new Cpt_Items_Reset();
 	}
 
 	public static function is_woocommerce_active() {

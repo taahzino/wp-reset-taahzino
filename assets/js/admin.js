@@ -2,21 +2,26 @@
 	'use strict';
 
 	function BatchProcessor(config) {
-		this.$button       = $(config.buttonId);
-		this.$progressWrap = $(config.progressWrapId);
-		this.$progressFill = $(config.progressFillId);
-		this.$progressText = $(config.progressTextId);
-		this.$result       = $(config.resultId);
-		this.$count        = $(config.countId);
-		this.action        = config.action;
-		this.nonce         = config.nonce;
-		this.confirmMsg    = config.confirmMsg;
-		this.processingMsg = config.processingMsg;
-		this.progressMsg   = config.progressMsg;
-		this.completeMsg   = config.completeMsg;
-		this.emptyMsg      = config.emptyMsg;
-		this.responseKey   = config.responseKey;
+		this.$button        = $(config.buttonId);
+		this.$cancelButton  = $(config.cancelButtonId);
+		this.$progressWrap  = $(config.progressWrapId);
+		this.$progressFill  = $(config.progressFillId);
+		this.$progressText  = $(config.progressTextId);
+		this.$result        = $(config.resultId);
+		this.$count         = $(config.countId);
+		this.action         = config.action;
+		this.nonce          = config.nonce;
+		this.confirmMsg     = config.confirmMsg;
+		this.processingMsg  = config.processingMsg;
+		this.progressMsg    = config.progressMsg;
+		this.completeMsg    = config.completeMsg;
+		this.emptyMsg       = config.emptyMsg;
+		this.cancelledMsg   = config.cancelledMsg;
+		this.responseKey    = config.responseKey;
+		this.extraData      = config.extraData || null;
+		this.onComplete     = config.onComplete || null;
 		this.totalProcessed = 0;
+		this.cancelled      = false;
 	}
 
 	BatchProcessor.prototype.init = function () {
@@ -27,6 +32,9 @@
 		this.$button.on('click', function () {
 			self.start();
 		});
+		this.$cancelButton.on('click', function () {
+			self.cancel();
+		});
 	};
 
 	BatchProcessor.prototype.start = function () {
@@ -35,7 +43,9 @@
 		}
 
 		this.totalProcessed = 0;
-		this.$button.prop('disabled', true);
+		this.cancelled = false;
+		this.$button.hide();
+		this.$cancelButton.show().prop('disabled', false);
 		this.$result.hide().empty().removeClass('wrt-notice-success wrt-notice-error wrt-notice-warning');
 		this.$progressWrap.show();
 		this.$progressFill.css('width', '0%');
@@ -44,17 +54,31 @@
 		this.processBatch();
 	};
 
+	BatchProcessor.prototype.cancel = function () {
+		this.cancelled = true;
+		this.$cancelButton.prop('disabled', true);
+		this.$progressText.text(wrtData.i18n.cancelling);
+	};
+
 	BatchProcessor.prototype.processBatch = function () {
 		var self = this;
+
+		var ajaxData = {
+			action: self.action,
+			nonce:  self.nonce,
+		};
+
+		if (typeof self.extraData === 'function') {
+			$.extend(ajaxData, self.extraData());
+		} else if (self.extraData) {
+			$.extend(ajaxData, self.extraData);
+		}
 
 		$.ajax({
 			url:      wrtData.ajaxUrl,
 			type:     'POST',
 			dataType: 'json',
-			data: {
-				action: self.action,
-				nonce:  self.nonce,
-			},
+			data:     ajaxData,
 			success: function (response) {
 				if (!response.success) {
 					self.showError(response.data && response.data.message ? response.data.message : wrtData.i18n.error);
@@ -68,6 +92,7 @@
 				if (processed === 0 && remaining === 0) {
 					if (self.totalProcessed === 0) {
 						self.showResult(self.emptyMsg, 'wrt-notice-warning');
+						self.resetButtons(true);
 					} else {
 						self.showComplete();
 					}
@@ -78,7 +103,11 @@
 				self.updateProgress(self.totalProcessed, self.totalProcessed + remaining);
 
 				if (remaining > 0) {
-					self.processBatch();
+					if (self.cancelled) {
+						self.showCancelled();
+					} else {
+						self.processBatch();
+					}
 				} else {
 					self.showComplete();
 				}
@@ -104,12 +133,28 @@
 		this.$progressText.text('');
 		this.showResult(this.completeMsg, 'wrt-notice-success');
 		this.$count.text('0');
-		this.$button.prop('disabled', true);
+		this.resetButtons(true);
+
+		if (typeof this.onComplete === 'function') {
+			this.onComplete();
+		}
+	};
+
+	BatchProcessor.prototype.showCancelled = function () {
+		this.$progressText.text('');
+		var message = this.cancelledMsg.replace('%d', this.totalProcessed);
+		this.showResult(message, 'wrt-notice-warning');
+		this.resetButtons(false);
 	};
 
 	BatchProcessor.prototype.showError = function (message) {
 		this.showResult(message, 'wrt-notice-error');
-		this.$button.prop('disabled', false);
+		this.resetButtons(false);
+	};
+
+	BatchProcessor.prototype.resetButtons = function (disableAction) {
+		this.$cancelButton.hide();
+		this.$button.show().prop('disabled', disableAction);
 	};
 
 	BatchProcessor.prototype.showResult = function (message, className) {
@@ -123,6 +168,7 @@
 	$(function () {
 		new BatchProcessor({
 			buttonId:       '#wrt-trash-orders',
+			cancelButtonId: '#wrt-cancel-trash',
 			progressWrapId: '#wrt-progress-wrap',
 			progressFillId: '#wrt-progress-fill',
 			progressTextId: '#wrt-progress-text',
@@ -135,11 +181,13 @@
 			progressMsg:    wrtData.i18n.trashed,
 			completeMsg:    wrtData.i18n.trashComplete,
 			emptyMsg:       wrtData.i18n.noOrders,
+			cancelledMsg:   wrtData.i18n.cancelledTrash,
 			responseKey:    'trashed',
 		}).init();
 
 		new BatchProcessor({
 			buttonId:       '#wrt-empty-trash-orders',
+			cancelButtonId: '#wrt-cancel-empty',
 			progressWrapId: '#wrt-empty-progress-wrap',
 			progressFillId: '#wrt-empty-progress-fill',
 			progressTextId: '#wrt-empty-progress-text',
@@ -152,8 +200,89 @@
 			progressMsg:    wrtData.i18n.deleted,
 			completeMsg:    wrtData.i18n.emptyComplete,
 			emptyMsg:       wrtData.i18n.noTrashedOrders,
+			cancelledMsg:   wrtData.i18n.cancelledEmpty,
 			responseKey:    'deleted',
 		}).init();
+
+		var $roleSelect = $('#wrt-user-role');
+		var $userCount  = $('#wrt-user-count');
+		var $deleteBtn  = $('#wrt-delete-users');
+
+		if ($roleSelect.length) {
+			$roleSelect.on('change', function () {
+				var $selected = $roleSelect.find(':selected');
+				var count = parseInt($selected.data('count'), 10) || 0;
+				$userCount.text(count);
+				$deleteBtn.prop('disabled', count === 0 || !$selected.val());
+			});
+
+			new BatchProcessor({
+				buttonId:       '#wrt-delete-users',
+				cancelButtonId: '#wrt-cancel-users',
+				progressWrapId: '#wrt-users-progress-wrap',
+				progressFillId: '#wrt-users-progress-fill',
+				progressTextId: '#wrt-users-progress-text',
+				resultId:       '#wrt-users-result',
+				countId:        '#wrt-user-count',
+				action:         'wrt_delete_users',
+				nonce:          wrtData.nonceDeleteUsers,
+				confirmMsg:     wrtData.i18n.confirmDeleteUsers,
+				processingMsg:  wrtData.i18n.deletingUsers,
+				progressMsg:    wrtData.i18n.deletedUsers,
+				completeMsg:    wrtData.i18n.deleteUsersComplete,
+				emptyMsg:       wrtData.i18n.noUsersFound,
+				cancelledMsg:   wrtData.i18n.cancelledUsers,
+				responseKey:    'deleted',
+				extraData: function () {
+					return { role: $roleSelect.val() };
+				},
+				onComplete: function () {
+					var $selected = $roleSelect.find(':selected');
+					$selected.data('count', 0);
+					$selected.text($selected.text().replace(/\(\d[\d,]*\)/, '(0)'));
+				},
+			}).init();
+		}
+
+		var $cptSelect  = $('#wrt-cpt-select');
+		var $cptCount   = $('#wrt-cpt-count');
+		var $cptBtn     = $('#wrt-delete-cpt-items');
+
+		if ($cptSelect.length) {
+			$cptSelect.on('change', function () {
+				var $selected = $cptSelect.find(':selected');
+				var count = parseInt($selected.data('count'), 10) || 0;
+				$cptCount.text(count);
+				$cptBtn.prop('disabled', count === 0 || !$selected.val());
+			});
+
+			new BatchProcessor({
+				buttonId:       '#wrt-delete-cpt-items',
+				cancelButtonId: '#wrt-cancel-cpt',
+				progressWrapId: '#wrt-cpt-progress-wrap',
+				progressFillId: '#wrt-cpt-progress-fill',
+				progressTextId: '#wrt-cpt-progress-text',
+				resultId:       '#wrt-cpt-result',
+				countId:        '#wrt-cpt-count',
+				action:         'wrt_delete_cpt_items',
+				nonce:          wrtData.nonceCptItems,
+				confirmMsg:     wrtData.i18n.confirmCptDelete,
+				processingMsg:  wrtData.i18n.deletingCpt,
+				progressMsg:    wrtData.i18n.deletedCpt,
+				completeMsg:    wrtData.i18n.cptDeleteComplete,
+				emptyMsg:       wrtData.i18n.noCptItems,
+				cancelledMsg:   wrtData.i18n.cancelledCpt,
+				responseKey:    'deleted',
+				extraData: function () {
+					return { post_type: $cptSelect.val() };
+				},
+				onComplete: function () {
+					var $selected = $cptSelect.find(':selected');
+					$selected.data('count', 0);
+					$selected.text($selected.text().replace(/\(\d[\d,]*\)/, '(0)'));
+				},
+			}).init();
+		}
 	});
 
 })(jQuery);
