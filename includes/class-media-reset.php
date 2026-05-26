@@ -8,14 +8,17 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Media_Reset {
 
-	const BATCH_SIZE        = 50;
-	const AJAX_COUNT        = 'wrt_count_media_by_prefix';
-	const AJAX_DELETE       = 'wrt_delete_media_by_prefix';
-	const NONCE_ACTION      = 'wrt_media_prefix';
+	const BATCH_SIZE   = 50;
+	const AJAX_COUNT   = 'wrt_count_media_by_prefix';
+	const AJAX_DELETE  = 'wrt_delete_media_by_prefix';
+	const AJAX_ZIP     = 'wrt_create_media_zip';
+	const NONCE_ACTION = 'wrt_media_prefix';
+	const EXPORTS_DIR  = 'wrt-exports';
 
 	public function __construct() {
 		add_action( 'wp_ajax_' . self::AJAX_COUNT,  array( $this, 'handle_count_ajax' ) );
 		add_action( 'wp_ajax_' . self::AJAX_DELETE, array( $this, 'handle_delete_ajax' ) );
+		add_action( 'wp_ajax_' . self::AJAX_ZIP,    array( $this, 'handle_create_zip_ajax' ) );
 	}
 
 	public function handle_count_ajax() {
@@ -38,6 +41,87 @@ class Media_Reset {
 		wp_send_json_success( array( 'count' => $count ) );
 	}
 
+	public function handle_create_zip_ajax() {
+		check_ajax_referer( self::NONCE_ACTION, 'nonce' );
+
+		if ( ! current_user_can( 'delete_posts' ) ) {
+			wp_send_json_error( array(
+				'message' => __( 'You do not have permission to perform this action.', 'wp-reset-taahzino' ),
+			), 403 );
+		}
+
+		if ( ! class_exists( 'ZipArchive' ) ) {
+			wp_send_json_error( array(
+				'message' => __( 'The ZipArchive PHP extension is not available on this server.', 'wp-reset-taahzino' ),
+			), 500 );
+		}
+
+		$prefix = $this->get_prefix();
+		if ( is_wp_error( $prefix ) ) {
+			wp_send_json_error( array( 'message' => $prefix->get_error_message() ), 400 );
+		}
+
+		$ids = self::get_by_prefix( $prefix, -1 );
+		if ( empty( $ids ) ) {
+			wp_send_json_error( array(
+				'message' => __( 'No matching files found to zip.', 'wp-reset-taahzino' ),
+			), 404 );
+		}
+
+		$upload_dir  = wp_upload_dir();
+		$base_dir    = $upload_dir['basedir'];
+		$base_url    = $upload_dir['baseurl'];
+		$exports_dir = $base_dir . '/' . self::EXPORTS_DIR;
+
+		if ( ! is_dir( $exports_dir ) ) {
+			wp_mkdir_p( $exports_dir );
+			// Prevent directory browsing.
+			file_put_contents( $exports_dir . '/index.php', '<?php // Silence is golden.' );
+		}
+
+		$zip_filename = 'media-' . sanitize_file_name( $prefix ) . '.zip';
+		$zip_path     = $exports_dir . '/' . $zip_filename;
+		$zip_url      = $base_url . '/' . self::EXPORTS_DIR . '/' . $zip_filename;
+
+		// Remove stale zip for the same prefix.
+		if ( file_exists( $zip_path ) ) {
+			unlink( $zip_path );
+		}
+
+		$zip = new \ZipArchive();
+		if ( true !== $zip->open( $zip_path, \ZipArchive::CREATE ) ) {
+			wp_send_json_error( array(
+				'message' => __( 'Could not create the zip file. Check server write permissions for the uploads directory.', 'wp-reset-taahzino' ),
+			), 500 );
+		}
+
+		$added = 0;
+		foreach ( $ids as $id ) {
+			$file      = get_post_meta( $id, '_wp_attached_file', true );
+			$full_path = $base_dir . '/' . $file;
+			if ( $file && file_exists( $full_path ) ) {
+				$zip->addFile( $full_path, basename( $file ) );
+				$added++;
+			}
+		}
+
+		$zip->close();
+
+		if ( 0 === $added ) {
+			if ( file_exists( $zip_path ) ) {
+				unlink( $zip_path );
+			}
+			wp_send_json_error( array(
+				'message' => __( 'No physical files were found on disk for the matching attachments.', 'wp-reset-taahzino' ),
+			), 404 );
+		}
+
+		wp_send_json_success( array(
+			'url'   => $zip_url,
+			'count' => $added,
+		) );
+	}
+
 	public function handle_delete_ajax() {
 		check_ajax_referer( self::NONCE_ACTION, 'nonce' );
 
@@ -51,6 +135,9 @@ class Media_Reset {
 		if ( is_wp_error( $prefix ) ) {
 			wp_send_json_error( array( 'message' => $prefix->get_error_message() ), 400 );
 		}
+
+		// Clean up any zip exported for this prefix before deleting the originals.
+		$this->cleanup_zip( $prefix );
 
 		$ids = self::get_by_prefix( $prefix, self::BATCH_SIZE );
 
@@ -113,6 +200,29 @@ class Media_Reset {
 		}
 
 		return $raw;
+	}
+
+	/**
+	 * Delete the zip file previously created for $prefix, if it exists.
+	 *
+	 * @param string $prefix
+	 */
+	private function cleanup_zip( $prefix ) {
+		$zip_path = $this->get_zip_path( $prefix );
+		if ( file_exists( $zip_path ) ) {
+			unlink( $zip_path );
+		}
+	}
+
+	/**
+	 * Return the server-side path to the zip file for a given prefix.
+	 *
+	 * @param string $prefix
+	 * @return string
+	 */
+	private function get_zip_path( $prefix ) {
+		$upload_dir = wp_upload_dir();
+		return $upload_dir['basedir'] . '/' . self::EXPORTS_DIR . '/media-' . sanitize_file_name( $prefix ) . '.zip';
 	}
 
 	/**

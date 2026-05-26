@@ -246,17 +246,23 @@
 		}
 
 		// ---- Media by prefix ----
-		var $mediaPrefix    = $('#wrt-media-prefix');
-		var $mediaSearchBtn = $('#wrt-search-media');
-		var $mediaCountText = $('#wrt-media-count-text');
-		var $mediaDeleteBtn = $('#wrt-delete-media');
-		var mediaFoundCount = 0;
+		var $mediaPrefix       = $('#wrt-media-prefix');
+		var $mediaSearchBtn    = $('#wrt-search-media');
+		var $mediaCountText    = $('#wrt-media-count-text');
+		var $mediaDownloadBtn  = $('#wrt-download-media');
+		var $mediaDeleteBtn    = $('#wrt-delete-media');
+		var mediaFoundCount    = 0;
+
+		function resetMediaButtons() {
+			mediaFoundCount = 0;
+			$mediaCountText.hide().empty();
+			$mediaDownloadBtn.prop('disabled', true);
+			$mediaDeleteBtn.prop('disabled', true);
+		}
 
 		if ($mediaPrefix.length) {
 			$mediaPrefix.on('input', function () {
-				mediaFoundCount = 0;
-				$mediaCountText.hide().empty();
-				$mediaDeleteBtn.prop('disabled', true);
+				resetMediaButtons();
 			});
 
 			$mediaSearchBtn.on('click', function () {
@@ -272,6 +278,7 @@
 
 				$mediaSearchBtn.prop('disabled', true).text(wrtData.i18n.mediaSearching);
 				$mediaCountText.hide().empty();
+				$mediaDownloadBtn.prop('disabled', true);
 				$mediaDeleteBtn.prop('disabled', true);
 				mediaFoundCount = 0;
 
@@ -303,6 +310,7 @@
 								.addClass('wrt-notice wrt-notice-success')
 								.html('<p>' + msg + '</p>')
 								.show();
+							$mediaDownloadBtn.prop('disabled', false);
 							$mediaDeleteBtn.prop('disabled', false);
 						} else {
 							$mediaCountText
@@ -318,6 +326,62 @@
 							.removeClass('wrt-notice-success wrt-notice-error wrt-notice-warning')
 							.addClass('wrt-notice wrt-notice-error')
 							.html('<p>' + wrtData.i18n.error + '</p>')
+							.show();
+					},
+				});
+			});
+
+			// Download button — create zip server-side then trigger browser download.
+			$mediaDownloadBtn.on('click', function () {
+				var prefix = $.trim($mediaPrefix.val());
+				if (!prefix || !mediaFoundCount) { return; }
+
+				$mediaDownloadBtn.prop('disabled', true).text(wrtData.i18n.mediaCreatingZip);
+				$mediaDeleteBtn.prop('disabled', true);
+
+				$.ajax({
+					url:      wrtData.ajaxUrl,
+					type:     'POST',
+					dataType: 'json',
+					data: {
+						action: 'wrt_create_media_zip',
+						nonce:  wrtData.nonceMediaZip,
+						prefix: prefix,
+					},
+					success: function (response) {
+						$mediaDownloadBtn.prop('disabled', false).text(wrtData.i18n.mediaDownload);
+						$mediaDeleteBtn.prop('disabled', false);
+
+						if (!response.success) {
+							$mediaCountText
+								.removeClass('wrt-notice-success wrt-notice-error wrt-notice-warning')
+								.addClass('wrt-notice wrt-notice-error')
+								.html('<p>' + (response.data && response.data.message ? response.data.message : wrtData.i18n.mediaZipError) + '</p>')
+								.show();
+							return;
+						}
+
+						// Trigger download by creating a temporary hidden link.
+						var $link = $('<a>')
+							.attr('href', response.data.url)
+							.attr('download', '')
+							.appendTo('body');
+						$link[0].click();
+						$link.remove();
+
+						$mediaCountText
+							.removeClass('wrt-notice-success wrt-notice-error wrt-notice-warning')
+							.addClass('wrt-notice wrt-notice-success')
+							.html('<p>' + wrtData.i18n.mediaZipReady + '</p>')
+							.show();
+					},
+					error: function () {
+						$mediaDownloadBtn.prop('disabled', false).text(wrtData.i18n.mediaDownload);
+						$mediaDeleteBtn.prop('disabled', false);
+						$mediaCountText
+							.removeClass('wrt-notice-success wrt-notice-error wrt-notice-warning')
+							.addClass('wrt-notice wrt-notice-error')
+							.html('<p>' + wrtData.i18n.mediaZipError + '</p>')
 							.show();
 					},
 				});
@@ -346,8 +410,7 @@
 					return { prefix: $.trim($mediaPrefix.val()) };
 				},
 				onComplete: function () {
-					mediaFoundCount = 0;
-					$mediaDeleteBtn.prop('disabled', true);
+					resetMediaButtons();
 				},
 			}).init();
 		}

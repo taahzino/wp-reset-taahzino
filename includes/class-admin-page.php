@@ -54,6 +54,7 @@ class Admin_Page {
 			'nonceDeleteUsers' => wp_create_nonce( 'wrt_delete_users' ),
 			'nonceCptItems'    => wp_create_nonce( 'wrt_delete_cpt_items' ),
 			'nonceMedia'       => wp_create_nonce( 'wrt_media_prefix' ),
+			'nonceMediaZip'    => wp_create_nonce( 'wrt_media_prefix' ),
 			'i18n'             => array(
 				'confirmTrash'       => __( 'Are you sure you want to move ALL WooCommerce orders to trash? This cannot be easily undone for large datasets.', 'wp-reset-taahzino' ),
 				'trashing'           => __( 'Trashing orders...', 'wp-reset-taahzino' ),
@@ -91,6 +92,10 @@ class Admin_Page {
 				'mediaDeleteComplete'  => __( 'All matching media files have been permanently deleted.', 'wp-reset-taahzino' ),
 				'cancelledMedia'       => __( 'Process cancelled. %d file(s) were deleted.', 'wp-reset-taahzino' ),
 				'mediaPrefixRequired'  => __( 'Please enter a filename prefix to search.', 'wp-reset-taahzino' ),
+				'mediaCreatingZip'     => __( 'Creating zip, please wait...', 'wp-reset-taahzino' ),
+				'mediaZipReady'        => __( 'Zip ready — your download should start automatically.', 'wp-reset-taahzino' ),
+				'mediaZipError'        => __( 'Could not create zip file. Please try again.', 'wp-reset-taahzino' ),
+				'mediaDownload'        => __( 'Download', 'wp-reset-taahzino' ),
 			),
 		) );
 	}
@@ -378,6 +383,12 @@ class Admin_Page {
 			<div id="wrt-media-result" style="display:none;"></div>
 
 			<p class="wrt-actions">
+				<button type="button"
+					id="wrt-download-media"
+					class="button button-primary"
+					disabled>
+					<?php esc_html_e( 'Download', 'wp-reset-taahzino' ); ?>
+				</button>
 				<button type="button"
 					id="wrt-delete-media"
 					class="button button-link-delete"
