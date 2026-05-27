@@ -67,12 +67,14 @@ class Admin_Page {
 				'deleted'            => __( 'Deleted %1$d of %2$d orders...', 'wp-reset-taahzino' ),
 				'emptyComplete'      => __( 'All trashed orders have been permanently deleted.', 'wp-reset-taahzino' ),
 				'noTrashedOrders'    => __( 'No trashed orders found to delete.', 'wp-reset-taahzino' ),
-				'confirmDeleteUsers' => __( 'Are you sure you want to PERMANENTLY DELETE all users in the selected role and ALL their content? This action cannot be undone.', 'wp-reset-taahzino' ),
-				'deletingUsers'      => __( 'Deleting users and their content...', 'wp-reset-taahzino' ),
-				'deletedUsers'       => __( 'Deleted %1$d of %2$d users...', 'wp-reset-taahzino' ),
+				'confirmDeleteUsers'  => __( 'Are you sure you want to PERMANENTLY DELETE all users in the selected role? Their content will be reassigned to the selected administrator. This cannot be undone.', 'wp-reset-taahzino' ),
+				'deletingUsers'       => __( 'Deleting users and reassigning their content...', 'wp-reset-taahzino' ),
+				'deletedUsers'        => __( 'Deleted %1$d of %2$d users...', 'wp-reset-taahzino' ),
 				'deleteUsersComplete' => __( 'All users in the selected role have been deleted.', 'wp-reset-taahzino' ),
-				'noUsersFound'       => __( 'No users found in the selected role.', 'wp-reset-taahzino' ),
-				'selectRole'         => __( '-- Select a role --', 'wp-reset-taahzino' ),
+				'noUsersFound'        => __( 'No users found in the selected role.', 'wp-reset-taahzino' ),
+				'selectRole'          => __( '-- Select a role --', 'wp-reset-taahzino' ),
+				'selectReassign'      => __( '-- Select an administrator --', 'wp-reset-taahzino' ),
+				'noAdmins'            => __( 'No administrators found to reassign content to.', 'wp-reset-taahzino' ),
 				'cancelling'         => __( 'Cancelling after current batch...', 'wp-reset-taahzino' ),
 				'cancelledTrash'     => __( 'Process cancelled. %d order(s) were moved to trash.', 'wp-reset-taahzino' ),
 				'cancelledEmpty'     => __( 'Process cancelled. %d order(s) were permanently deleted.', 'wp-reset-taahzino' ),
@@ -291,14 +293,18 @@ class Admin_Page {
 	}
 
 	private function render_users_card() {
-		$roles          = wp_roles()->get_names();
+		$roles           = wp_roles()->get_names();
 		$current_user_id = get_current_user_id();
+		$admins          = get_users( array(
+			'role'   => 'administrator',
+			'fields' => array( 'ID', 'display_name' ),
+		) );
 		?>
 		<div class="wrt-card">
 			<h2><?php esc_html_e( 'Delete Users by Role', 'wp-reset-taahzino' ); ?></h2>
 
 			<p>
-				<label for="wrt-user-role"><?php esc_html_e( 'Select a role:', 'wp-reset-taahzino' ); ?></label><br>
+				<label for="wrt-user-role"><?php esc_html_e( 'Select a role to delete:', 'wp-reset-taahzino' ); ?></label><br>
 				<select id="wrt-user-role" class="wrt-select">
 					<option value="" data-count="0"><?php esc_html_e( '-- Select a role --', 'wp-reset-taahzino' ); ?></option>
 					<?php foreach ( $roles as $role_slug => $role_name ) :
@@ -323,6 +329,26 @@ class Admin_Page {
 					'<strong id="wrt-user-count">0</strong>'
 				);
 				?>
+			</p>
+
+			<p>
+				<label for="wrt-reassign-user"><?php esc_html_e( 'Reassign their content to:', 'wp-reset-taahzino' ); ?></label><br>
+				<?php if ( empty( $admins ) ) : ?>
+					<span class="description"><?php esc_html_e( 'No administrators found.', 'wp-reset-taahzino' ); ?></span>
+				<?php else : ?>
+					<select id="wrt-reassign-user" class="wrt-select">
+						<option value=""><?php esc_html_e( '-- Select an administrator --', 'wp-reset-taahzino' ); ?></option>
+						<?php foreach ( $admins as $admin ) : ?>
+							<option value="<?php echo esc_attr( $admin->ID ); ?>"
+								<?php selected( $admin->ID, $current_user_id ); ?>>
+								<?php echo esc_html( $admin->display_name ); ?>
+								<?php if ( $admin->ID === $current_user_id ) : ?>
+									<?php esc_html_e( '(you)', 'wp-reset-taahzino' ); ?>
+								<?php endif; ?>
+							</option>
+						<?php endforeach; ?>
+					</select>
+				<?php endif; ?>
 			</p>
 
 			<div id="wrt-users-progress-wrap" style="display:none;">

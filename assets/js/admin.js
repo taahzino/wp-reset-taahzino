@@ -205,16 +205,29 @@
 			responseKey:    'deleted',
 		}).init();
 
-		var $roleSelect = $('#wrt-user-role');
-		var $userCount  = $('#wrt-user-count');
-		var $deleteBtn  = $('#wrt-delete-users');
+		var $roleSelect     = $('#wrt-user-role');
+		var $reassignSelect = $('#wrt-reassign-user');
+		var $userCount      = $('#wrt-user-count');
+		var $deleteBtn      = $('#wrt-delete-users');
+
+		function updateUsersDeleteBtn() {
+			var $selectedRole = $roleSelect.find(':selected');
+			var count         = parseInt($selectedRole.data('count'), 10) || 0;
+			var hasRole       = !!$selectedRole.val();
+			var hasReassign   = $reassignSelect.length ? !!$reassignSelect.val() : true;
+			$deleteBtn.prop('disabled', !hasRole || count === 0 || !hasReassign);
+		}
 
 		if ($roleSelect.length) {
 			$roleSelect.on('change', function () {
 				var $selected = $roleSelect.find(':selected');
 				var count = parseInt($selected.data('count'), 10) || 0;
 				$userCount.text(count);
-				$deleteBtn.prop('disabled', count === 0 || !$selected.val());
+				updateUsersDeleteBtn();
+			});
+
+			$reassignSelect.on('change', function () {
+				updateUsersDeleteBtn();
 			});
 
 			new BatchProcessor({
@@ -235,7 +248,10 @@
 				cancelledMsg:   wrtData.i18n.cancelledUsers,
 				responseKey:    'deleted',
 				extraData: function () {
-					return { role: $roleSelect.val() };
+					return {
+						role:        $roleSelect.val(),
+						reassign_to: $reassignSelect.val(),
+					};
 				},
 				onComplete: function () {
 					var $selected = $roleSelect.find(':selected');
